@@ -18,7 +18,7 @@ contract Quest is RandomNumberGenerationQuest, UUPSUpgradeable, OwnableUpgradeab
     uint256 index_text; // success or failure index to be interpretred by the frontend
   }
 
-  /// @dev Data tracking of free quests..
+  /// @dev Data tracking of free quests.
   struct QuestFree {
     uint256 count; // number of free quests started per week
     uint256 date_weekly; // x free quests a week
@@ -37,18 +37,23 @@ contract Quest is RandomNumberGenerationQuest, UUPSUpgradeable, OwnableUpgradeab
   mapping(address => uint256) public player_quest_last_id;
   mapping(address => mapping(uint256 => QuestLog)) public quest_log;
   mapping(address => ReceivedRewards) public received_rewards;
+
+  bool initialized;
  
-  uint256[50] private __gap;
+  uint256[49] private __gap;
 
   /// @notice Initializes the smart contract.
   /// @dev Triggered on upgrades.
   /// @param main Main contract address to point to.
   function initialize(address main) initializer public {
+    require(!initialized, "Already initialized.");
+
     __Ownable_init();
 
     MAIN = IMain(main);
 
     quest_free = QuestFree(0, block.timestamp);
+    initialized = true;
   }
 
   event StartedQuest(uint256 indexed index, address indexed player, uint256 indexed weapon, uint128 rarity, uint256 variation);
@@ -158,14 +163,13 @@ contract Quest is RandomNumberGenerationQuest, UUPSUpgradeable, OwnableUpgradeab
   }
 
   /// @notice Terminate a quest before it's complete.
-  /// @dev TODO: needs unit test
   function cancel() external {
     Player memory player = MAIN.getPlayer(_msgSender());
     uint256 last_id = player_quest_last_id[_msgSender()];
     QuestLog storage quest = quest_log[_msgSender()][last_id];
 
     require(player.quest_end != 0, "You are not running a quest.");
-    require(player.quest_end < block.timestamp, "Your quest is not finished.");
+    require(player.quest_end > block.timestamp, "Your quest is finished.");
 
     quest.status = keccak256("FAILURE");
     quest.end = 0;

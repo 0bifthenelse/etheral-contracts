@@ -33,8 +33,9 @@ contract Main is RandomNumberGenerationMain, UUPSUpgradeable, ERC721EnumerableUp
   uint256 private constant ROYALTY = 5;
   uint256 private constant PERCENT_DIVIDER = 10;
   uint256 private token_id;
+  bool initialized;
 
-  uint256[50] private __gap;
+  uint256[49] private __gap;
 
   modifier onlyQuest() {
     require(_msgSender() == QUEST, "Only from quest contract.");
@@ -43,10 +44,13 @@ contract Main is RandomNumberGenerationMain, UUPSUpgradeable, ERC721EnumerableUp
 
   /// @notice Initializes the smart contract, is triggered only once on proxy deployment
   function initialize(address royalty_receiver) initializer public {
+    require(!initialized, "Already initialized.");
+
     __ERC721_init("Weapons", "WPN");
     __Ownable_init();
 
     ROYALTY_RECEIVER = royalty_receiver;
+    initialized = true;
   }
 
   event WeaponUpgraded(
@@ -58,6 +62,7 @@ contract Main is RandomNumberGenerationMain, UUPSUpgradeable, ERC721EnumerableUp
   event CharacterCreated(address indexed player, uint256 indexed id);
   event PurchasedChests(address indexed player, uint256 indexed count);
   event OpenedChest(address indexed player);
+  event OpenedMultipleChests(address indexed player, uint256 count);
 
   /// @notice Changes the Quest contract address.
   /// @param quest New quest contract address.
@@ -110,7 +115,7 @@ contract Main is RandomNumberGenerationMain, UUPSUpgradeable, ERC721EnumerableUp
 
   /// @notice Mints a new weapon by using one chest.
   /// @dev Can't be send to an account that does not support ERC721 interface.
-  function openChest() external {
+  function openChest() public {
     uint128 rarity = RandomNumberGenerationMain.weaponMintRarity();
     uint256 variation = RandomNumberGenerationMain.weaponMintVariation();
     Weapon storage weapon = weapons[++token_id];
@@ -128,6 +133,26 @@ contract Main is RandomNumberGenerationMain, UUPSUpgradeable, ERC721EnumerableUp
     _mint(_msgSender(), token_id);
 
     emit OpenedChest(_msgSender());
+  }
+
+  /// @notice Open all owned chests.
+  /// @dev Calls openChest for each owned chest.
+  function openAllChests() public {
+    Player storage player = players[_msgSender()];
+    uint256 chests = player.chests;
+    uint256 opened_chests = 0;
+
+    require(chests > 0, "You need chests to mint weapons.");
+
+    for (uint256 i = 0; i < chests; i++) {
+      openChest();
+
+      unchecked {
+        ++opened_chests;
+      }
+    }
+
+    emit OpenedMultipleChests(_msgSender(), opened_chests);
   }
 
   /// @notice Upgrade a weapon. If the upgrade fails, the weapon is destroyed.
